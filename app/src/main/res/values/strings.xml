@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">数展证码通</string>
+
+    <!-- 扫码状态  -->
+    <string name="scan_status_default">无</string>
+    <string name="scan_status_success">解码成功</string>
+    <string name="scan_status_failed">解码失败</string>
+    <string name="scan_status_cancel">用户取消</string>
+</resources>
