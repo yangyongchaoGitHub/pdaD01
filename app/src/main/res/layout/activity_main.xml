@@ -12,6 +12,20 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     tools:context="com.dataexpo.zmt.MainActivity">-->
+    <ImageView
+        android:id="@+id/iv_menu"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:src="@mipmap/main_select_white_x"
+        app:layout_constraintWidth_percent="0.12"
+        app:layout_constraintHeight_percent="0.07"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintHorizontal_bias="0.99"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.00"
+        />
 
     <TextView
         android:id="@+id/tv_total"

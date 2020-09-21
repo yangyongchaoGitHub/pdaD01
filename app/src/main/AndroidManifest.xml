@@ -45,5 +45,9 @@
             android:name="com.idatachina.ise.camera.CameraPreview"
             android:screenOrientation="portrait" >
         </activity>
+        <activity android:name="com.dataexpo.zmt.ScanRecordActivity"/>
+        <activity android:name="com.dataexpo.zmt.UploadActivity"/>
+        <activity android:name="com.dataexpo.zmt.UpLoadCheckExpoid"/>
+        <activity android:name="com.dataexpo.zmt.UploadSuccessActivity"/>
     </application>
 </manifest>

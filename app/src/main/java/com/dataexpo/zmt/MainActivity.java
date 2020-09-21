@@ -1,13 +1,14 @@
 package com.dataexpo.zmt;
 
-import androidx.annotation.ColorRes;
 import androidx.annotation.NonNull;
 
-import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Color;
-import android.graphics.drawable.BitmapDrawable;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -17,14 +18,14 @@ import android.text.TextWatcher;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
-import android.view.Window;
-import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.dataexpo.zmt.common.DBUtils;
+import com.dataexpo.zmt.common.Utils;
 import com.dataexpo.zmt.pojo.SaveData;
 import com.dataexpo.zmt.readidcard.DynamicPermission;
 import com.idata.fastscandemo.R;
@@ -35,11 +36,21 @@ import com.idatachina.imeasuresdk.IMeasureSDK;
 import com.ivsign.android.IDCReader.IdentityCard;
 import com.yishu.YSNfcCardReader.NfcCardReader;
 import com.yishu.util.ByteUtil;
+import com.zyao89.view.zloading.ZLoadingDialog;
+import com.zyao89.view.zloading.Z_TYPE;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.PrintWriter;
 import java.lang.ref.WeakReference;
+import java.lang.reflect.Method;
 import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
 
-public class MainActivity extends Activity implements DecodeResultListener, View.OnClickListener, TextWatcher {
+public class MainActivity extends BascActivity implements DecodeResultListener, View.OnClickListener, TextWatcher {
     private final static String TAG = MainActivity.class.getName();
     public static final int STATUS_INIT = 0;
     public static final int STATUS_INPUT_CODEORID = 1;
@@ -69,6 +80,7 @@ public class MainActivity extends Activity implements DecodeResultListener, View
     private TextView tv_plc_value;
     private TextView tv_data_value;
     private ImageView iv_head;
+    private ImageView iv_menu;
     private Button btn_scan;
     private Button btn_last;
 
@@ -89,18 +101,15 @@ public class MainActivity extends Activity implements DecodeResultListener, View
     private volatile int mStatus = STATUS_INIT;
 
     private boolean bNFCInput = false;
+    private Context mContext = null;
+    private String usage_mode = "offline";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        mContext = MainActivity.this;
+        DBUtils.getInstance().create(this);
         Log.i(TAG, "onCreate");
-        // 将activity设置为全屏显示
-        requestWindowFeature(Window.FEATURE_NO_TITLE);
-        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
-                WindowManager.LayoutParams.FLAG_FULLSCREEN);
-        //保持屏幕常亮
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-
         setContentView(R.layout.activity_main);
 
         tv_code_value = findViewById(R.id.tv_code_value);
@@ -114,6 +123,8 @@ public class MainActivity extends Activity implements DecodeResultListener, View
         tv_plc_value = findViewById(R.id.tv_plc_value);
         tv_data_value = findViewById(R.id.tv_data_value);
         iv_head = findViewById(R.id.iv_head);
+        iv_menu = findViewById(R.id.iv_menu);
+        iv_menu.setOnClickListener(this);
         btn_scan = findViewById(R.id.btn_scan);
         btn_scan.setOnClickListener(this);
         btn_last = findViewById(R.id.btn_last);
@@ -140,7 +151,7 @@ public class MainActivity extends Activity implements DecodeResultListener, View
         CamDecodeAPI.getInstance(MainActivity.this)
                 .SetOnDecodeListener(MainActivity.this);
         tv_temp_value.setHintTextColor(Color.WHITE);
-
+        usage_mode = Utils.getUsageMode(mContext);
     }
 
     private void initView() {
@@ -210,6 +221,7 @@ public class MainActivity extends Activity implements DecodeResultListener, View
         Intent intent = getIntent();
         String action = intent.getAction();
         Log.i(TAG,"onResume " + action);
+
         if("android.nfc.action.TECH_DISCOVERED".equals(action)){
             Log.i(TAG,"onResume 1");
             if(thisIntent == null){
@@ -311,7 +323,107 @@ public class MainActivity extends Activity implements DecodeResultListener, View
     @Override
     public void onClick(View v) {
         Log.i(TAG, "onClick  status: " + mStatus);
+        usage_mode = Utils.getUsageMode(mContext);
         switch (v.getId()) {
+            case R.id.iv_menu:
+                AlertDialog.Builder builder = new AlertDialog.Builder(this);
+                final String[] module = {"查看数据", "导出数据到zmtRecord","后台连接设置","数据上传","设备编码：" + Utils.getSerialNumber(), "当前版本:V1.0"};
+                //builder.setTitle("选择读取模式");
+                //builder.setIcon(R.mipmap.ic_launcher);
+                builder.setSingleChoiceItems(module, -1, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        switch (which){
+                            case 0:
+                                //查看数据
+                                startActivity(new Intent(MainActivity.this, ScanRecordActivity.class));
+                                break;
+                            case 1:
+                                //导出数据
+                                List<SaveData> codes = DBUtils.getInstance().listAllOffLine();
+                                if (codes.size() > 0) {
+                                    final ZLoadingDialog zdialog = new ZLoadingDialog(mContext);
+                                    zdialog.setLoadingBuilder(Z_TYPE.CIRCLE)//设置类型
+                                            .setLoadingColor(Color.BLACK)//颜色
+                                            .setHintText("正在导出到/sdcard/zmtRecord/...")
+                                            .setCanceledOnTouchOutside(false)
+                                            .show();
+                                    SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd-HH.mm.ss");
+                                    long dateTime = new Date().getTime();
+                                    String date = simpleDateFormat.format(dateTime);
+                                    String fileName = date + ".txt";
+                                    File file = new File("/sdcard/zmtRecord/");
+                                    if (!file.exists()) {
+                                        file.mkdirs();
+                                    }
+                                    file = new File(file, fileName);
+                                    try {
+                                        FileWriter fw = new FileWriter(file, true);
+                                        BufferedWriter bw = new BufferedWriter(fw);
+                                        PrintWriter printWriter = new PrintWriter(bw);
+                                        for (SaveData code : codes) {
+                                            String strContent = code.getName() + "&&" + code.getIdcard() + "&&" + code.getEucode() + "&&" + code.getTemp() + "&&" + code.getTime() +"\n";
+                                            printWriter.println(strContent);
+                                        }
+                                        printWriter.close();
+                                        bw.close();
+                                        fw.close();
+                                        zdialog.cancel();
+                                        Toast.makeText(mContext, "导出成功, 目录是/sdcard/zmtRecord/", Toast.LENGTH_LONG).show();
+                                    } catch (Exception e) {
+                                        e.printStackTrace();
+                                        zdialog.cancel();
+                                        Toast.makeText(mContext, "导出失败", Toast.LENGTH_LONG).show();
+                                    }
+                                } else {
+                                    Toast.makeText(mContext, "没有数据可导出", Toast.LENGTH_LONG).show();
+                                }
+                                break;
+                            case 2:
+                                //连接设置在线或者离线
+                                final androidx.appcompat.app.AlertDialog.Builder normalDialog =
+                                        new androidx.appcompat.app.AlertDialog.Builder(mContext);
+
+                                normalDialog.setMessage("当前模式： " + (usage_mode.equals("online") ? "在线模式" : "离线模式"));
+
+                                normalDialog.setPositiveButton("设置在线",
+                                        new DialogInterface.OnClickListener() {
+                                            @Override
+                                            public void onClick(DialogInterface dialog, int which) {
+                                                Utils.saveUsageMode(mContext, "online");
+                                                Toast.makeText(mContext, "当前已设置为在线模式", Toast.LENGTH_LONG).show();
+                                                usage_mode = "online";
+                                            }
+                                        });
+                                normalDialog.setNegativeButton("设置离线",
+                                        new DialogInterface.OnClickListener() {
+                                            @Override
+                                            public void onClick(DialogInterface dialog, int which) {
+                                                //Utils.saveUsageMode(mContext, "offline");
+                                                //Toast.makeText(mContext, "当前已设置为离线模式", Toast.LENGTH_LONG).show();
+                                                Toast.makeText(mContext, "当前仅支持离线模式", Toast.LENGTH_LONG).show();
+                                                //usage_mode = "offline";
+                                            }
+                                        });
+                                // 显示
+                                normalDialog.show();
+                                break;
+                            case 3:
+                                //数据上传
+                                startActivity(new Intent(mContext, UpLoadCheckExpoid.class));
+                                break;
+                            case 4:
+                                //
+                                break;
+                            default: break;
+                        }
+                        dialog.dismiss();
+                    }
+                });
+                builder.show();
+
+                break;
+
             case R.id.btn_scan:
                 if (mStatus == STATUS_INIT || mStatus == STATUS_INPUT_CODEORID) {
                     //去扫码
@@ -399,6 +511,20 @@ public class MainActivity extends Activity implements DecodeResultListener, View
                 " - idcatd: " + saveData.getIdcard(), Toast.LENGTH_LONG).show();
         Log.i(TAG, "eucode: " + saveData.getEucode() + " - name: " + saveData.getName() + " - temp: " + saveData.getTemp() +
                 " - idcatd: " + saveData.getIdcard());
+
+        long dateTime = new Date().getTime();
+        String date = Utils.formatTime(dateTime, "yyyy-MM-dd HH:mm:ss");
+        saveData.setTime(date);
+        saveData.setAddress(tv_addr_value.getText().toString());
+
+        //判断模式
+        if ("online".equals(usage_mode)) {
+            saveData.setModeType(1);
+        } else {
+            saveData.setModeType(0);
+        }
+
+        DBUtils.getInstance().insertData(saveData);
 
         initView();
     }
@@ -682,7 +808,7 @@ public class MainActivity extends Activity implements DecodeResultListener, View
 //                                    activity.tv_sex_value.setText(sex);
 //                                    activity.tv_n_value.setText(nation);
 //                                    activity.tv_create_value.setText(birthday);
-//                                    activity.tv_addr_value.setText(address);
+                                    activity.tv_addr_value.setText(address);
 //                                    activity.tv_plc_value.setText(qianfa);
 //                                    activity.tv_data_value.setText(effdate);
                                     activity.iv_head.setImageBitmap(personImg);
@@ -726,4 +852,6 @@ public class MainActivity extends Activity implements DecodeResultListener, View
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         dynamicPermission.permissionRequestOperation(requestCode, permissions, grantResults);
     }
+
+
 }
