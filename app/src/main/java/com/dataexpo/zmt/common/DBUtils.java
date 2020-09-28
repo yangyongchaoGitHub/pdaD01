@@ -10,6 +10,7 @@ import android.util.Log;
 import com.dataexpo.zmt.pojo.SaveData;
 
 import java.util.ArrayList;
+import java.util.Date;
 
 import static android.content.Context.MODE_PRIVATE;
 
@@ -129,9 +130,9 @@ public class DBUtils {
      * id 删除id
      */
     public int delData(int id) {
-        Log.e(TAG, "id==============" + id);
+        //Log.e(TAG, "id==============" + id);
         int inde = db.delete(dbname, "id = ?", new String[]{String.valueOf(id)});
-        Log.e(TAG, "删除了==============" + inde);
+        //Log.e(TAG, "删除了==============" + inde);
         return inde;
     }
 
@@ -139,8 +140,14 @@ public class DBUtils {
      * 根据
      *
      */
-    public int delDataAll() {
-        int inde = db.delete(dbname,null,null);
+    public int delDataAllOffline() {
+        int inde = db.delete(dbname,"modetype = ?", new String[]{"0"});
+        Log.e("--Main--", "删除了==============" + inde);
+        return inde;
+    }
+
+    public int delDataAllOnline() {
+        int inde = db.delete(dbname,"modetype = ?", new String[]{"1"});
         Log.e("--Main--", "删除了==============" + inde);
         return inde;
     }
@@ -174,7 +181,6 @@ public class DBUtils {
         return false;
     }
 
-
     public int count(String code) {
         int result = 0;
         Cursor cursor = db.query(dbname, null, "eufilecode = ?", new String[]{code}, null, null, null);
@@ -187,4 +193,18 @@ public class DBUtils {
         return result;
     }
 
+    public int countToDay() {
+        int result = 0;
+        String printtime = Utils.formatTime(new Date().getTime(), "yyyy-MM-dd");
+        //tv_welcome.setText(date);
+
+        Cursor cursor = db.query(dbname, new String[]{"time"}, "time like ? ",
+                new String[]{"%" + printtime + "%"}, null, null, null);
+        while (cursor.moveToNext()) {
+            result++;
+        }
+        cursor.close();
+
+        return result;
+    }
 }

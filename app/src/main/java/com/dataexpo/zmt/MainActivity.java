@@ -6,6 +6,8 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.os.Build;
@@ -25,9 +27,14 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.dataexpo.zmt.common.DBUtils;
+import com.dataexpo.zmt.common.HttpCallback;
+import com.dataexpo.zmt.common.HttpService;
+import com.dataexpo.zmt.common.URLs;
 import com.dataexpo.zmt.common.Utils;
+import com.dataexpo.zmt.pojo.MsgBean;
 import com.dataexpo.zmt.pojo.SaveData;
 import com.dataexpo.zmt.readidcard.DynamicPermission;
+import com.google.gson.Gson;
 import com.idata.fastscandemo.R;
 import com.idata.ise.scanner.decoder.CamDecodeAPI;
 import com.idata.ise.scanner.decoder.DecodeResult;
@@ -36,6 +43,7 @@ import com.idatachina.imeasuresdk.IMeasureSDK;
 import com.ivsign.android.IDCReader.IdentityCard;
 import com.yishu.YSNfcCardReader.NfcCardReader;
 import com.yishu.util.ByteUtil;
+import com.zhy.http.okhttp.request.RequestCall;
 import com.zyao89.view.zloading.ZLoadingDialog;
 import com.zyao89.view.zloading.Z_TYPE;
 
@@ -48,7 +56,10 @@ import java.lang.reflect.Method;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+
+import okhttp3.Call;
 
 public class MainActivity extends BascActivity implements DecodeResultListener, View.OnClickListener, TextWatcher {
     private final static String TAG = MainActivity.class.getName();
@@ -84,6 +95,12 @@ public class MainActivity extends BascActivity implements DecodeResultListener, 
     private Button btn_scan;
     private Button btn_last;
 
+    private TextView tv_expoId;
+    private TextView tv_expoId_value;
+    private TextView tv_gateaddress;
+
+    private TextView tv_total_value;
+
     private int scaning = 0;
     private MyHandler mHandler;
     private static NfcCardReader nfcCardReaderAPI;
@@ -103,6 +120,15 @@ public class MainActivity extends BascActivity implements DecodeResultListener, 
     private boolean bNFCInput = false;
     private Context mContext = null;
     private String usage_mode = "offline";
+    private String onLineExpoId = "";
+    private String onLineAddress = "";
+    private HashMap<Integer, SaveData> uploadMap = new HashMap<>();
+    private int rid = 0;
+    private int total = 0;
+
+    private boolean bResult = true;
+    private int exitCount = 0;
+    private long exitTime = System.currentTimeMillis();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -130,6 +156,12 @@ public class MainActivity extends BascActivity implements DecodeResultListener, 
         btn_last = findViewById(R.id.btn_last);
         btn_last.setOnClickListener(this);
 
+        tv_expoId = findViewById(R.id.tv_expoId);
+        tv_expoId_value = findViewById(R.id.tv_expoId_value);
+        tv_gateaddress = findViewById(R.id.tv_gateaddress);
+
+        tv_total_value = findViewById(R.id.tv_total_value);
+
         tv_temp_value.addTextChangedListener(this);
 
         manager = new SoundManager(this);
@@ -150,8 +182,37 @@ public class MainActivity extends BascActivity implements DecodeResultListener, 
         initView();
         CamDecodeAPI.getInstance(MainActivity.this)
                 .SetOnDecodeListener(MainActivity.this);
+
         tv_temp_value.setHintTextColor(Color.WHITE);
         usage_mode = Utils.getUsageMode(mContext);
+
+        refreshMode(usage_mode);
+
+        total = DBUtils.getInstance().countToDay();
+        tv_total_value.setText(String.valueOf(total));
+    }
+
+    private void refreshMode(String usage_mode) {
+        if ("online".equals(usage_mode)) {
+            //在线模式显示
+            tv_expoId.setVisibility(View.VISIBLE);
+            tv_expoId_value.setVisibility(View.VISIBLE);
+            tv_gateaddress.setVisibility(View.VISIBLE);
+
+            tv_expoId_value.setText(onLineExpoId);
+            tv_gateaddress.setText(onLineAddress);
+
+
+        } else {
+            tv_expoId.setVisibility(View.INVISIBLE);
+            tv_expoId_value.setVisibility(View.INVISIBLE);
+            tv_gateaddress.setVisibility(View.INVISIBLE);
+
+            tv_expoId_value.setText("");
+            tv_gateaddress.setText("");
+            onLineExpoId = "";
+            onLineAddress = "";
+        }
     }
 
     private void initView() {
@@ -165,6 +226,7 @@ public class MainActivity extends BascActivity implements DecodeResultListener, 
         tv_name_value.setText("");
         //tv_code_value.setText("");
         tv_idcard.setText("");
+        tv_addr_value.setText("");
 
         tv_name_value.setEnabled(true);
         tv_idcard.setEnabled(true);
@@ -249,6 +311,20 @@ public class MainActivity extends BascActivity implements DecodeResultListener, 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         Log.i(TAG, "onKeyDown  status: " + mStatus + " --- " + keyCode);
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+
+            if (System.currentTimeMillis() - exitTime < 2000) {
+                if (++exitCount == 3) {
+                    exitTime = System.currentTimeMillis();
+                    MainActivity.this.finish();
+                }
+            } else {
+                exitTime = System.currentTimeMillis();
+                exitCount = 0;
+            }
+            return false;
+        }
+
         if (600==keyCode||601==keyCode||602==keyCode) {
             //有code之后直接进行测温
             if (!"".equals(tv_idcard.getText().toString()) && !"提交".equals(btn_scan.getText().toString())) {
@@ -326,8 +402,21 @@ public class MainActivity extends BascActivity implements DecodeResultListener, 
         usage_mode = Utils.getUsageMode(mContext);
         switch (v.getId()) {
             case R.id.iv_menu:
+                // 获取packagemanager的实例
+                PackageManager packageManager = getPackageManager();
+                // getPackageName()是你当前类的包名，0代表是获取版本信息
+                PackageInfo packInfo = null;
+                String version = "";
+                try {
+                    packInfo = packageManager.getPackageInfo(getPackageName(),0);
+
+                    version = packInfo.versionName;
+                } catch (PackageManager.NameNotFoundException e) {
+                    e.printStackTrace();
+                }
+
                 AlertDialog.Builder builder = new AlertDialog.Builder(this);
-                final String[] module = {"查看数据", "导出数据到zmtRecord","后台连接设置","数据上传","设备编码：" + Utils.getSerialNumber(), "当前版本:V1.0"};
+                final String[] module = {"查看数据", "导出数据到zmtRecord","后台连接设置", "重新设置在线配置", "数据上传", "设备编码：" + Utils.getSerialNumber(), "当前版本:V" + version};
                 //builder.setTitle("选择读取模式");
                 //builder.setIcon(R.mipmap.ic_launcher);
                 builder.setSingleChoiceItems(module, -1, new DialogInterface.OnClickListener() {
@@ -362,7 +451,11 @@ public class MainActivity extends BascActivity implements DecodeResultListener, 
                                         BufferedWriter bw = new BufferedWriter(fw);
                                         PrintWriter printWriter = new PrintWriter(bw);
                                         for (SaveData code : codes) {
-                                            String strContent = code.getName() + "&&" + code.getIdcard() + "&&" + code.getEucode() + "&&" + code.getTemp() + "&&" + code.getTime() +"\n";
+                                            String strContent = (code.getName() == null || "null".equals(code.getName()) ? "" : code.getName()) + "&" +
+                                                    (code.getIdcard() == null || "null".equals(code.getIdcard()) ? "" : code.getIdcard()) + "&" +
+                                                    (code.getEucode() == null || "null".equals(code.getEucode()) ? "" : code.getEucode()) + "&" +
+                                                    (code.getTemp() == null || "null".equals(code.getTemp()) ? "" : code.getTemp()) + "&" +
+                                                    (code.getTime() == null || "null".equals(code.getTime()) ? "" : code.getTime());
                                             printWriter.println(strContent);
                                         }
                                         printWriter.close();
@@ -393,27 +486,37 @@ public class MainActivity extends BascActivity implements DecodeResultListener, 
                                                 Utils.saveUsageMode(mContext, "online");
                                                 Toast.makeText(mContext, "当前已设置为在线模式", Toast.LENGTH_LONG).show();
                                                 usage_mode = "online";
+                                                refreshMode(usage_mode);
                                             }
                                         });
                                 normalDialog.setNegativeButton("设置离线",
                                         new DialogInterface.OnClickListener() {
                                             @Override
                                             public void onClick(DialogInterface dialog, int which) {
-                                                //Utils.saveUsageMode(mContext, "offline");
-                                                //Toast.makeText(mContext, "当前已设置为离线模式", Toast.LENGTH_LONG).show();
-                                                Toast.makeText(mContext, "当前仅支持离线模式", Toast.LENGTH_LONG).show();
-                                                //usage_mode = "offline";
+                                                Utils.saveUsageMode(mContext, "offline");
+                                                Toast.makeText(mContext, "当前已设置为离线模式", Toast.LENGTH_LONG).show();
+                                                //Toast.makeText(mContext, "当前仅支持离线模式", Toast.LENGTH_LONG).show();
+                                                usage_mode = "offline";
+                                                refreshMode(usage_mode);
                                             }
                                         });
                                 // 显示
                                 normalDialog.show();
                                 break;
                             case 3:
+                                //重新设置在线配置
+                                if ("online".equals(usage_mode)) {
+                                    Intent intent = new Intent(mContext, UpLoadCheckExpoid.class);
+                                    intent.putExtra("isCheck", 1);
+                                    startActivityForResult(intent, 1);
+                                } else {
+                                    Toast.makeText(mContext, "请开启在线模式", Toast.LENGTH_SHORT).show();
+                                }
+                                break;
+
+                            case 4:
                                 //数据上传
                                 startActivity(new Intent(mContext, UpLoadCheckExpoid.class));
-                                break;
-                            case 4:
-                                //
                                 break;
                             default: break;
                         }
@@ -466,7 +569,37 @@ public class MainActivity extends BascActivity implements DecodeResultListener, 
         }
     }
 
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        Log.i(TAG, "onActivityResult request: " +requestCode + " result:" + resultCode);
+
+        if (resultCode == 1 && data != null) {
+            onLineExpoId = data.getExtras().getString("expoId");
+            onLineAddress = data.getExtras().getString("address");
+
+            //设置显示
+            refreshMode(usage_mode);
+        }
+
+    }
+
     private void commit() {
+        if (!bResult) {
+            return;
+        }
+
+        if ("online".equals(usage_mode)) {
+            if ("".equals(onLineExpoId) || "".equals(onLineAddress)) {
+                //startActivity(new Intent(mContext, UpLoadCheckExpoid.class));
+                Intent intent = new Intent(mContext, UpLoadCheckExpoid.class);
+                intent.putExtra("isCheck", 1);
+                startActivityForResult(intent, 1);
+                Toast.makeText(mContext, "在线模式需要设置，请确认使用模式后设置", Toast.LENGTH_LONG).show();
+                return;
+            }
+        }
+
         saveData = new SaveData();
         //String code = tv_code_value.getText().toString();
         String name = tv_name_value.getText().toString();
@@ -507,8 +640,8 @@ public class MainActivity extends BascActivity implements DecodeResultListener, 
 //        saveData.setTemp(tv_temp_value.getText().toString());
 //        saveData.setIdcard(tv_idcard.getText().toString());
         //保存到数据库
-        Toast.makeText(this, "eucode: " + saveData.getEucode() + " - name: " + saveData.getName() + " - temp: " + saveData.getTemp() +
-                " - idcatd: " + saveData.getIdcard(), Toast.LENGTH_LONG).show();
+//        Toast.makeText(this, "eucode: " + saveData.getEucode() + " - name: " + saveData.getName() + " - temp: " + saveData.getTemp() +
+//                " - idcatd: " + saveData.getIdcard(), Toast.LENGTH_LONG).show();
         Log.i(TAG, "eucode: " + saveData.getEucode() + " - name: " + saveData.getName() + " - temp: " + saveData.getTemp() +
                 " - idcatd: " + saveData.getIdcard());
 
@@ -524,7 +657,90 @@ public class MainActivity extends BascActivity implements DecodeResultListener, 
             saveData.setModeType(0);
         }
 
-        DBUtils.getInstance().insertData(saveData);
+        Long id = DBUtils.getInstance().insertData(saveData);
+
+        total++;
+
+        tv_total_value.setText(String.valueOf(total));
+//        for (int i = 0; i < 5000; i++) {
+//            DBUtils.getInstance().insertData(saveData);
+//        }
+
+        //Log.i(TAG, "insert result id " + id);
+        if (id != -1) {
+            //Log.i(TAG, "insert != -1 " + id);
+            saveData.setId(id.intValue());
+            //Log.i(TAG, "insert != -1 " + saveData.getId());
+        }
+
+        HashMap<String, String> hashMap = new HashMap<>();
+        hashMap.put("expoId", onLineExpoId);
+        hashMap.put("address", onLineAddress);
+
+        if ("online".equals(usage_mode)) {
+            //上传
+            if (null != saveData.getEucode() && !"".equals(saveData.getEucode()) && !"null".equals(saveData.getEucode())) {
+                //Log.i(TAG, "----------------------- eucode " + saveData.getEucode());
+                hashMap.put("eucode", saveData.getEucode());
+            }
+            if (null != saveData.getTime() && !"".equals(saveData.getTime()) && !"null".equals(saveData.getTime())) {
+                hashMap.put("time", saveData.getTime() + "");
+            }
+            if (null != saveData.getName() && !"".equals(saveData.getName()) && !"null".equals(saveData.getName())) {
+                hashMap.put("name", saveData.getName() + "");
+            }
+            if (null != saveData.getIdcard() && !"".equals(saveData.getIdcard()) && !"null".equals(saveData.getIdcard())) {
+                hashMap.put("idcard", saveData.getIdcard() + "");
+            }
+            if (null != saveData.getAddress() && !"".equals(saveData.getAddress()) && !"null".equals(saveData.getAddress())) {
+                hashMap.put("useraddress", saveData.getAddress() + "");
+            }
+            if (null != saveData.getTemp() && !"".equals(saveData.getTemp()) && !"null".equals(saveData.getTemp())) {
+                hashMap.put("temperature", saveData.getTemp() + "");
+            }
+            if (null != saveData.getModeType()) {
+                hashMap.put("modeType", saveData.getModeType() + "");
+            }
+            hashMap.put("deviceKey", Utils.getSerialNumber());
+
+            final String url = URLs.offLineUploadCT;
+
+            //Log.i(TAG, "euCode: " + saveData.getEucode() + " euFileCode: " + saveData.getIdcard() + " " + hashMap.get("eucode"));
+            //synchronized (this) {
+                //HttpService.postWithParams(mContext, url, hashMap, callback);
+            bResult = false;
+                RequestCall call = HttpService.postWithParams(mContext, url, hashMap, ++rid, new HttpCallback() {
+                    @Override
+                    public void onError(Call call, Exception e, int id) {
+                        bResult = true;
+                        Toast.makeText(mContext, "上传失败,可使用完成后再进行数据上传", Toast.LENGTH_SHORT).show();
+                    }
+
+                    @Override
+                    public void onResponse(String response, final int id) {
+                        bResult = true;
+                        Log.i(TAG, "onResponse id : " + id);
+                        final MsgBean result = new Gson().fromJson(response, MsgBean.class);
+
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                if (result.code == 200) {
+                                    SaveData saveData = uploadMap.get(id);
+                                    if (saveData != null && saveData.getId() != null && saveData.getId() > 0) {
+                                        DBUtils.getInstance().delData(saveData.getId());
+                                    }
+                                } else {
+                                    //tv_success.setText(String.valueOf(++success));
+                                    //tv_wait.setText(String.valueOf(++wait));
+                                    Toast.makeText(mContext, "上传失败,可使用完成后再进行数据上传", Toast.LENGTH_SHORT).show();
+                                }
+                            }});
+                    }
+                });
+                uploadMap.put(rid, saveData);
+            //}
+        }
 
         initView();
     }
@@ -590,7 +806,6 @@ public class MainActivity extends BascActivity implements DecodeResultListener, 
 
     @Override
     public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-
     }
 
     @Override

@@ -18,6 +18,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.dataexpo.zmt.common.DBUtils;
+import com.dataexpo.zmt.common.Utils;
 import com.dataexpo.zmt.listener.OnItemClickListener;
 import com.dataexpo.zmt.pojo.SaveData;
 import com.idata.fastscandemo.R;
@@ -32,7 +33,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
 
-public class ScanRecordActivity extends Activity implements View.OnClickListener, OnItemClickListener {
+public class ScanRecordActivity extends BascActivity implements View.OnClickListener, OnItemClickListener {
     private final String TAG = ScanRecordActivity.class.getSimpleName();
     private Context mContext;
     private TextView tv_total;
@@ -51,9 +52,15 @@ public class ScanRecordActivity extends Activity implements View.OnClickListener
     }
 
     private void initData() {
-        codes = DBUtils.getInstance().listAllOffLine();
+        String usage_mode = Utils.getUsageMode(mContext);
+        if ("offline".equals(usage_mode)) {
+            codes = DBUtils.getInstance().listAllOffLine();
+        } else {
+            codes = DBUtils.getInstance().listAllOnLine();
+        }
         tv_total.setText(String.valueOf(codes.size()));
-        tv_total_today.setText(String.valueOf(codes.size()));
+
+        tv_total_today.setText(String.valueOf(DBUtils.getInstance().countToDay()));
         dateAdapter = new RecordAdapter();
         recyclerView.setAdapter(dateAdapter);
 
@@ -84,7 +91,13 @@ public class ScanRecordActivity extends Activity implements View.OnClickListener
                         new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
-                                DBUtils.getInstance().delDataAll();
+                                String usage_mode = Utils.getUsageMode(mContext);
+
+                                if ("offline".equals(usage_mode)) {
+                                    DBUtils.getInstance().delDataAllOffline();
+                                } else {
+                                    DBUtils.getInstance().delDataAllOnline();
+                                }
                                 finish();
                             }
                         });
@@ -127,14 +140,19 @@ public class ScanRecordActivity extends Activity implements View.OnClickListener
                         BufferedWriter bw = new BufferedWriter(fw);
                         PrintWriter printWriter = new PrintWriter(bw);
                         for (SaveData code : codes) {
-                            String strContent = code.getName() + "&&" + code.getIdcard() + "&&" + code.getEucode() + "&&" + code.getTemp() + "&&" + code.getTime() +"\n";
+                            //String strContent = code.getName() + "&&" + code.getIdcard() + "&&" + code.getEucode() + "&&" + code.getTemp() + "&&" + code.getTime();
+                            String strContent = (code.getName() == null || "null".equals(code.getName()) ? "" : code.getName()) + "&" +
+                                    (code.getIdcard() == null || "null".equals(code.getIdcard()) ? "" : code.getIdcard()) + "&" +
+                                    (code.getEucode() == null || "null".equals(code.getEucode()) ? "" : code.getEucode()) + "&" +
+                                    (code.getTemp() == null || "null".equals(code.getTemp()) ? "" : code.getTemp()) + "&" +
+                                    (code.getTime() == null || "null".equals(code.getTime()) ? "" : code.getTime());
                             printWriter.println(strContent);
                         }
                         printWriter.close();
                         bw.close();
                         fw.close();
                         zdialog.cancel();
-                        Toast.makeText(mContext, "导出成功, 目录是/sdcard/zmtRecord/", Toast.LENGTH_LONG).show();
+                        Toast.makeText(mContext, "导出成功！目录是/sdcard/zmtRecord/", Toast.LENGTH_LONG).show();
                     } catch (Exception e) {
                         e.printStackTrace();
                         zdialog.cancel();

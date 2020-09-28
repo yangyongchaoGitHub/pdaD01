@@ -1,5 +1,6 @@
 package com.dataexpo.zmt.common;
 
+import android.app.Presentation;
 import android.content.Context;
 import android.util.Log;
 
@@ -174,18 +175,19 @@ public class HttpService {
      * @param hashMap
      * @param httpCallBack
      */
-    public static void postWithParams(Context context, String url, HashMap<String, String> hashMap, HttpCallback httpCallBack) {
+    public static RequestCall postWithParams(Context context, String url, HashMap<String, String> hashMap, int id, HttpCallback httpCallBack) {
         RequestCall requestCall = OkHttpUtils
                 .post()
                 .url(url)
+                .id(id)
                 .params(getParams(context, hashMap))
                 .headers(getHeads(context))
                 .build()
                 .connTimeOut(10000)
                 .readTimeOut(10000)
                 .writeTimeOut(10000);
-        Log.i("------------------", requestCall +" || " + httpCallBack);
         requestCall.execute(httpCallBack);
+        return requestCall;
     }
 
     /**

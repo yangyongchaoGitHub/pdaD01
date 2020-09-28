@@ -9,6 +9,8 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.widget.TextView;
 
+import androidx.core.text.TextUtilsCompat;
+
 import com.dataexpo.zmt.common.DBUtils;
 import com.dataexpo.zmt.common.HttpCallback;
 import com.dataexpo.zmt.common.HttpService;
@@ -18,6 +20,7 @@ import com.dataexpo.zmt.pojo.MsgBean;
 import com.dataexpo.zmt.pojo.SaveData;
 import com.google.gson.Gson;
 import com.idata.fastscandemo.R;
+import com.zhy.http.okhttp.request.RequestCall;
 
 import java.util.HashMap;
 import java.util.List;
@@ -35,7 +38,7 @@ public class UploadActivity extends BascActivity implements View.OnClickListener
     private TextView tv_success;
     private TextView tv_wait;
     private TextView tv_upload_warning;
-    private List<SaveData> codes;
+    private List<SaveData> datas;
     private String expo_id;
     private String address;
     private HttpCallback callback;
@@ -43,6 +46,12 @@ public class UploadActivity extends BascActivity implements View.OnClickListener
     private int wait;
     private int total;
     private volatile int uploadStatus = UPLOAD_STOP;
+
+    private long lastChange = System.currentTimeMillis();
+
+    private HashMap<Integer, SaveData> uploadMap = new HashMap<>();
+
+    private int rid = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,9 +64,14 @@ public class UploadActivity extends BascActivity implements View.OnClickListener
     }
 
     private void initData() {
-        codes = DBUtils.getInstance().listAllOffLine();
+        String usage_mode = Utils.getUsageMode(mContext);
+        if ("offline".equals(usage_mode)) {
+            datas = DBUtils.getInstance().listAllOffLine();
+        } else {
+            datas = DBUtils.getInstance().listAllOnLine();
+        }
         success = 0;
-        total = wait = codes.size();
+        total = wait = datas.size();
         tv_total.setText(String.valueOf(total));
         tv_success.setText("0");
         tv_wait.setText(String.valueOf(wait));
@@ -80,6 +94,9 @@ public class UploadActivity extends BascActivity implements View.OnClickListener
     }
 
     private void tryUpload() {
+        if (datas.size() == 0) {
+            return;
+        }
         if (uploadStatus == UPLOAD_ING) {
             return;
         }
@@ -91,7 +108,7 @@ public class UploadActivity extends BascActivity implements View.OnClickListener
             public void run() {
                 upLoadData();
                 Log.i(TAG, "upload exit!!!!!!");
-                uploadStop();
+                //uploadStop();
             }
         }).start();
     }
@@ -108,78 +125,105 @@ public class UploadActivity extends BascActivity implements View.OnClickListener
     }
 
     private void upLoadData() {
-        String url = URLs.offLineUploadCT;
-        HashMap<String, String> hashMap = new HashMap<>();
-        hashMap.put("expoId", expo_id);
-        hashMap.put("address", address);
+        final String url = URLs.offLineUploadCT;
+
         String serial = Utils.getSerialNumber();
 
-        for (final SaveData code:codes) {
+        for (SaveData data: datas) {
             if (uploadStatus == UPLOAD_STOP) {
                 break;
             }
+            HashMap<String, String> hashMap = new HashMap<>();
+            hashMap.put("expoId", expo_id);
+            hashMap.put("address", address);
 
-            if (null != code.getEucode() && !"".equals(code.getEucode()) && !"null".equals(code.getEucode())) {
-                Log.i(TAG, "----------------------- eucode " + code.getEucode());
-                hashMap.put("eucode", code.getEucode());
+            //Log.i(TAG, "eucode: " + data.getEucode() + " time: " + data.getTime() + " name: " +  data.getName()  + "idcard:" +  data.getIdcard() );
+
+            if (null != data.getEucode() && !"".equals(data.getEucode()) && !"null".equals(data.getEucode())) {
+                //Log.i(TAG, "----------------------- eucode " + data.getEucode());
+                hashMap.put("eucode", data.getEucode());
             }
-            if (null != code.getTime() && !"".equals(code.getTime()) && !"null".equals(code.getTime())) {
-                hashMap.put("time", code.getTime() + "");
+            if (null != data.getTime() && !"".equals(data.getTime()) && !"null".equals(data.getTime())) {
+                hashMap.put("time", data.getTime() + "");
             }
-            if (null != code.getName() && !"".equals(code.getName()) && !"null".equals(code.getName())) {
-                hashMap.put("name", code.getName() + "");
+            if (null != data.getName() && !"".equals(data.getName()) && !"null".equals(data.getName())) {
+                hashMap.put("name", data.getName() + "");
             }
-            if (null != code.getIdcard() && !"".equals(code.getIdcard()) && !"null".equals(code.getIdcard())) {
-                hashMap.put("idcard", code.getIdcard() + "");
+            if (null != data.getIdcard() && !"".equals(data.getIdcard()) && !"null".equals(data.getIdcard())) {
+                hashMap.put("idcard", data.getIdcard() + "");
             }
-            if (null != code.getAddress() && !"".equals(code.getAddress()) && !"null".equals(code.getAddress())) {
-                hashMap.put("useraddress", code.getAddress() + "");
+            if (null != data.getAddress() && !"".equals(data.getAddress()) && !"null".equals(data.getAddress())) {
+                hashMap.put("useraddress", data.getAddress() + "");
             }
-            if (null != code.getTemp() && !"".equals(code.getTemp()) && !"null".equals(code.getTemp())) {
-                hashMap.put("temperature", code.getTemp() + "");
+            if (null != data.getTemp() && !"".equals(data.getTemp()) && !"null".equals(data.getTemp())) {
+                hashMap.put("temperature", data.getTemp() + "");
             }
-            if (null != code.getModeType()) {
-                hashMap.put("modeType", code.getModeType() + "");
+            if (null != data.getModeType()) {
+                hashMap.put("modeType", data.getModeType() + "");
             }
             hashMap.put("deviceKey", serial + "");
 
-            Log.i(TAG, "euCode: " + code.getEucode() + " euFileCode: " + code.getIdcard() + " " + hashMap.get("eucode"));
-            synchronized (this) {
+            //Log.i(TAG, "euCode: " + data.getEucode() + " euFileCode: " + data.getIdcard() + " " + hashMap.get("eucode"));
+            //synchronized (this) {
                 //HttpService.postWithParams(mContext, url, hashMap, callback);
-                HttpService.postWithParams(mContext, url, hashMap, new HttpCallback() {
+                RequestCall call = HttpService.postWithParams(mContext, url, hashMap, ++rid, new HttpCallback() {
                     @Override
                     public void onError(Call call, Exception e, int id) {
                     }
                     @Override
-                    public void onResponse(String response, int id) {
+                    public void onResponse(String response, final int id) {
+                        //Log.i(TAG, "onResponse id : " + id);
                         final MsgBean result = new Gson().fromJson(response, MsgBean.class);
 
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
-                                tv_wait.setText(String.valueOf(--wait));
+
+                                --wait;
 
                                 if (result.code == 200) {
-                                    tv_success.setText(String.valueOf(++success));
 
-                                    DBUtils.getInstance().delData(code.getId());
+                                    success++;
+                                    SaveData saveData = uploadMap.get(id);
+                                    //Log.i(TAG, "result 200 " + id + " saveData : " + saveData);
+
+                                    if (saveData != null) {
+                                        //Log.i(TAG, "saveData id " + saveData.getId());
+                                        DBUtils.getInstance().delData(saveData.getId());
+                                    }
                                 } else {
                                     //tv_success.setText(String.valueOf(++success));
                                     //tv_wait.setText(String.valueOf(++wait));
-                                    //Toast.makeText(mContext, "上传失败id: " + code.eufilecode, Toast.LENGTH_SHORT).show();
+                                    //Toast.makeText(mContext, "上传失败id: " + data.eufilecode, Toast.LENGTH_SHORT).show();
                                 }
-                                Log.i(TAG, "total:" + total + " success:" + success);
+
+                                if (System.currentTimeMillis() - lastChange > 500 || wait < 100) {
+                                    tv_wait.setText(String.valueOf(wait));
+                                    tv_success.setText(String.valueOf(success));
+                                    lastChange = System.currentTimeMillis();
+                                }
+
+                                //Log.i(TAG, "total:" + total + " success:" + success + " wait: " + wait);
                                 if(wait == 0){
+                                    Log.i(TAG, "------------------- total:" + total + " success:" + success + " wait: " + wait);
                                     uploadEnd();
                                 }
                             }});
                     }
                 });
-            }
+                uploadMap.put(rid, data);
+
+            //}
         }
     }
 
     private void uploadEnd() {
+        tv_wait.setText(String.valueOf(wait));
+        tv_success.setText(String.valueOf(success));
+        tv_upload_warning.setText(R.string.upload_success);
+        UploadActivity.this.finish();
+
+        uploadStatus = UPLOAD_STOP;
         Intent intent = new Intent();
 
         intent.putExtra("success_count", success);
@@ -191,7 +235,7 @@ public class UploadActivity extends BascActivity implements View.OnClickListener
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getKeyCode() == KeyEvent.KEYCODE_ENTER && event.getAction() == KeyEvent.ACTION_DOWN) {
-            if (codes != null && codes.size() > 0) {
+            if (datas != null && datas.size() > 0) {
                 tryUpload();
             }
             return true;
@@ -218,6 +262,7 @@ public class UploadActivity extends BascActivity implements View.OnClickListener
 
     @Override
     protected void onResume() {
+        Log.i(TAG, "onResume()");
         uploadStatus = UPLOAD_STOP;
         super.onResume();
     }

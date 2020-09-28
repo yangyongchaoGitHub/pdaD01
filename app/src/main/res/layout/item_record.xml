@@ -58,7 +58,7 @@
             android:id="@+id/tv_item_record_temp"
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_weight="3"
+            android:layout_weight="2"
             android:gravity="center"
             android:textSize="12dp"
             android:textColor="@color/bg_black"

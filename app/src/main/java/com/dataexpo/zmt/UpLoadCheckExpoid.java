@@ -30,12 +30,23 @@ public class UpLoadCheckExpoid extends BascActivity implements View.OnClickListe
     private EditText et_expoId;
     private EditText et_address;
 
+    //设置是否进行验证返回
+    private int isCheck = 0;
+
+    private boolean bSuccess = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_upload_check_expoid);
         mContext = this;
         initView();
+
+        //获取页面标志
+        Bundle bundle = getIntent().getExtras();
+        if (bundle != null) {
+            isCheck = bundle.getInt("isCheck");
+        }
     }
 
     private void initView() {
@@ -63,7 +74,13 @@ public class UpLoadCheckExpoid extends BascActivity implements View.OnClickListe
         if (!et_expoId.hasFocus()) {
             et_expoId.requestFocus();
         }
+        bSuccess = false;
         super.onResume();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
     }
 
     private void check() {
@@ -82,7 +99,7 @@ public class UpLoadCheckExpoid extends BascActivity implements View.OnClickListe
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        Toast.makeText(mContext, "网络异常，请确认网络连接", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(mContext, "网络异常或服务器异常，请确认网络连接和软件版本", Toast.LENGTH_SHORT).show();
                     }
                 });
                 Log.i(TAG, e.getMessage());
@@ -97,13 +114,23 @@ public class UpLoadCheckExpoid extends BascActivity implements View.OnClickListe
                     @Override
                     public void run() {
                         if (msgBean.code == 200) {
-                            Intent intent = new Intent();
+                            bSuccess = true;
 
-                            intent.putExtra("Expo_id", expoId);
-                            intent.putExtra("Add", address);
-                            intent.setClass(mContext, UploadActivity.class);
+                            if (isCheck == 0) {
+                                Intent intent = new Intent();
 
-                            startActivity(intent);
+                                intent.putExtra("Expo_id", expoId);
+                                intent.putExtra("Add", address);
+                                intent.setClass(mContext, UploadActivity.class);
+
+                                startActivity(intent);
+
+                            } else {
+                                Intent intent = new Intent();
+                                intent.putExtra("expoId", expoId);
+                                intent.putExtra("address", address);
+                                UpLoadCheckExpoid.this.setResult(1, intent);
+                            }
                             finish();
 
                         } else {

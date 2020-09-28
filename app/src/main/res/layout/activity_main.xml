@@ -20,11 +20,53 @@
         app:layout_constraintWidth_percent="0.12"
         app:layout_constraintHeight_percent="0.07"
         app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintHorizontal_bias="0.99"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.00"
+        />
+
+    <TextView
+        android:id="@+id/tv_expoId"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/bg_white"
+        android:text="项目id："
+        android:textSize="20dp"
+        android:textStyle="bold"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintHorizontal_bias="0.02"
+        app:layout_constraintTop_toTopOf="@+id/iv_menu"
+        app:layout_constraintLeft_toRightOf="@+id/iv_menu"
+        app:layout_constraintBottom_toBottomOf="@+id/iv_menu"
+        />
+
+    <TextView
+        android:id="@+id/tv_expoId_value"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/bg_white"
+        android:textSize="20dp"
+        android:textStyle="bold"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintHorizontal_bias="0.02"
+        app:layout_constraintTop_toTopOf="@+id/tv_expoId"
+        app:layout_constraintLeft_toRightOf="@+id/tv_expoId"
+        app:layout_constraintBottom_toBottomOf="@+id/tv_expoId"
+        />
+
+    <TextView
+        android:id="@+id/tv_gateaddress"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:textColor="@color/bg_white"
+        android:textSize="20dp"
+        android:textStyle="bold"
+        android:gravity="right"
+        android:layout_marginEnd="5dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/tv_expoId"
+        app:layout_constraintBottom_toBottomOf="@+id/tv_expoId"
+        app:layout_constraintWidth_percent="0.35"
         />
 
     <TextView
@@ -32,7 +74,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:textColor="@color/bg_white"
-        android:text="总数："
+        android:text="当天总数："
         android:textSize="20dp"
         android:textStyle="bold"
         app:layout_constraintLeft_toLeftOf="parent"
@@ -40,7 +82,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintHorizontal_bias="0.02"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.01"
+        app:layout_constraintVertical_bias="0.08"
         />
 
     <TextView
@@ -64,26 +106,27 @@
         android:text="访客："
         android:textSize="20dp"
         android:textStyle="bold"
+        android:visibility="gone"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintHorizontal_bias="0.75"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.01"
+        app:layout_constraintTop_toTopOf="@+id/tv_guest_value"
+        app:layout_constraintEnd_toStartOf="@+id/tv_guest_value"
         />
 
     <TextView
+        android:visibility="gone"
         android:id="@+id/tv_guest_value"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintRight_toRightOf="parent"
         app:layout_constraintWidth_percent="0.3"
         app:layout_constraintHorizontal_bias="0.1"
-        app:layout_constraintStart_toEndOf="@+id/tv_guest"
         android:textColor="@color/bg_white"
         android:textSize="20dp"
         android:textStyle="bold"
-        app:layout_constraintTop_toTopOf="@+id/tv_guest" />
+        app:layout_constraintVertical_bias="0.08" />
 
     <TextView
         android:id="@+id/tv_temp"
@@ -215,7 +258,6 @@
         app:layout_constraintWidth_percent="0.7"
         app:layout_constraintHorizontal_bias="0.3"
         android:textColor="@color/bg_white"
-        android:text="value"
         android:textSize="20dp"
         android:textStyle="bold"
         app:layout_constraintTop_toTopOf="@+id/tv_sex" />
@@ -246,7 +288,6 @@
         app:layout_constraintWidth_percent="0.7"
         app:layout_constraintHorizontal_bias="0.3"
         android:textColor="@color/bg_white"
-        android:text="value"
         android:textSize="20dp"
         android:textStyle="bold"
         app:layout_constraintTop_toTopOf="@+id/tv_sex" />
@@ -277,7 +318,6 @@
         app:layout_constraintWidth_percent="0.7"
         app:layout_constraintHorizontal_bias="0.3"
         android:textColor="@color/bg_white"
-        android:text="value"
         android:textSize="20dp"
         android:textStyle="bold"
         app:layout_constraintTop_toTopOf="@+id/tv_n" />
@@ -308,7 +348,6 @@
         app:layout_constraintWidth_percent="0.7"
         app:layout_constraintHorizontal_bias="0.3"
         android:textColor="@color/bg_white"
-        android:text="value"
         android:textSize="20dp"
         android:textStyle="bold"
         app:layout_constraintTop_toTopOf="@+id/tv_create" />
@@ -339,7 +378,6 @@
         app:layout_constraintWidth_percent="0.7"
         app:layout_constraintHorizontal_bias="0.3"
         android:textColor="@color/bg_white"
-        android:text="value"
         android:textSize="20dp"
         android:textStyle="bold"
         app:layout_constraintTop_toTopOf="@+id/tv_addr" />
@@ -370,7 +408,6 @@
         app:layout_constraintWidth_percent="0.7"
         app:layout_constraintHorizontal_bias="0.3"
         android:textColor="@color/bg_white"
-        android:text="value"
         android:textSize="20dp"
         android:textStyle="bold"
         app:layout_constraintTop_toTopOf="@+id/tv_plc" />
@@ -401,7 +438,6 @@
         app:layout_constraintWidth_percent="0.7"
         app:layout_constraintHorizontal_bias="0.3"
         android:textColor="@color/bg_white"
-        android:text="value"
         android:textSize="20dp"
         android:textStyle="bold"
         app:layout_constraintTop_toTopOf="@+id/tv_data" />
@@ -432,7 +468,6 @@
         app:layout_constraintWidth_percent="0.7"
         app:layout_constraintHorizontal_bias="0.3"
         android:textColor="@color/bg_white"
-        android:text="value"
         android:textSize="20dp"
         android:textStyle="bold"
         app:layout_constraintTop_toTopOf="@+id/tv_code" />
