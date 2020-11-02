@@ -65,10 +65,10 @@ public class UploadActivity extends BascActivity implements View.OnClickListener
 
     private void initData() {
         String usage_mode = Utils.getUsageMode(mContext);
-        if ("offline".equals(usage_mode)) {
-            datas = DBUtils.getInstance().listAllOffLine();
-        } else {
+        if ("online".equals(usage_mode)) {
             datas = DBUtils.getInstance().listAllOnLine();
+        } else {
+            datas = DBUtils.getInstance().listAllOffLine();
         }
         success = 0;
         total = wait = datas.size();

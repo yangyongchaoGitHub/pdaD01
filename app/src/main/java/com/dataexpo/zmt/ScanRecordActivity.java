@@ -53,10 +53,11 @@ public class ScanRecordActivity extends BascActivity implements View.OnClickList
 
     private void initData() {
         String usage_mode = Utils.getUsageMode(mContext);
-        if ("offline".equals(usage_mode)) {
-            codes = DBUtils.getInstance().listAllOffLine();
-        } else {
+        if ("online".equals(usage_mode)) {
             codes = DBUtils.getInstance().listAllOnLine();
+
+        } else {
+            codes = DBUtils.getInstance().listAllOffLine();
         }
         tv_total.setText(String.valueOf(codes.size()));
 
